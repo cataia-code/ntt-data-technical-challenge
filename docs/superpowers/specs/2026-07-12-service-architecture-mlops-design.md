@@ -94,12 +94,13 @@ tests/
 
 ## CI/CD y despliegue
 
-`.github/workflows/ci.yml` — en cada push y PR a `main`:
+`.github/workflows/ci.yml` — en cada push y PR a `develop` (rama de integración) y en PRs hacia `master`:
 1. `ruff check .` + `ruff format --check .`
 2. `pytest tests/unit tests/integration/test_pipeline_fast.py`
 3. Bloquea el merge si algo falla
 
-`.github/workflows/deploy.yml` — en push a `main`, después de que `ci.yml` pase:
+`.github/workflows/deploy.yml` — en push a `master` (rama de release/producción), después de que `ci.yml`
+haya pasado en el PR develop→master:
 1. `pytest -m slow` (pipeline completo real, ~3-5 min) como gate final
 2. `coffee-analytics run` (pipeline completo) → `coffee-analytics report` (genera `reports/web/*.html`)
 3. Publica `reports/web/` a **GitHub Pages** vía `actions/upload-pages-artifact` +
@@ -121,11 +122,24 @@ fuente. El repo Git permanece limpio: solo versiona código, `data/raw/coffee_db
 
 ## Repositorio Git y GitHub
 
-Este repo aún no tiene `.git`. Flujo acordado:
-1. Se inicializa git localmente y se hacen los commits del refactor.
-2. El usuario crea un repositorio **vacío y público** en GitHub (público para que GitHub Pages sea
-   gratuito) y comparte la URL.
-3. Se añade el remoto y se hace el push inicial, con confirmación del usuario antes de cualquier push.
+Repo: [github.com/cataia-code/ntt-data-technical-challenge](https://github.com/cataia-code/ntt-data-technical-challenge)
+(creado vacío y público por el usuario, para que GitHub Pages sea gratuito).
+
+**Modelo de ramas (GitFlow simplificado):**
+- **`develop`** — rama de integración y **rama por defecto** del repositorio en GitHub. Todo el trabajo
+  (features, fixes, este mismo refactor) se hace en ramas cortas y se fusiona a `develop` vía PR. `ci.yml`
+  corre en cada push/PR contra `develop`.
+- **`master`** — rama de release/producción, protegida. Solo recibe merges desde `develop` (vía PR) cuando
+  el trabajo está listo para publicarse. Un push a `master` dispara `deploy.yml`: pipeline completo +
+  publicación a GitHub Pages. `master` siempre refleja lo que está desplegado.
+
+Flujo de trabajo:
+1. Se inicializa git localmente (ya hecho), rama de trabajo `develop`.
+2. Se añade el remoto `origin` apuntando al repo de GitHub y se hace el push inicial de `develop`, con
+   confirmación del usuario antes de cualquier push.
+3. En GitHub: se configura `develop` como rama por defecto, se crea `master` a partir de `develop` cuando
+   el refactor esté listo para el primer release, y se protegen ambas ramas (`master` requiere PR +
+   CI en verde; `develop` requiere CI en verde).
 4. El usuario habilita GitHub Pages con fuente "GitHub Actions" en la configuración del repo (paso manual
    de un clic, documentado en el plan de implementación).
 
