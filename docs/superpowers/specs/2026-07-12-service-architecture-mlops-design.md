@@ -73,6 +73,12 @@ reescribe — minimiza el riesgo de alterar resultados ya validados y documentad
   de tracking.
 - **Reproducibilidad**: semillas fijas centralizadas en `config.py`; `pyproject.toml` con dependencias
   ancladas (versión exacta) en vez de rangos abiertos.
+- **Versionado de datos**: `data/raw/coffee_db.parquet` se versiona vía **Git LFS** (`.gitattributes`
+  con `data/raw/*.parquet filter=lfs`), no como blob normal — es el único insumo inmutable del reto, sin
+  fuente externa de la que descargarse, y sacarlo de git rompería la reproducibilidad de CI/clones. LFS
+  evita inflar el historial de git con binarios (la práctica que se busca evitar) sin añadir fricción
+  operativa. `data/processed/` (long dataset + features) se **ignora por completo**: es 100% derivable de
+  `data/raw/` + código, no debe versionarse.
 
 ## Testing
 
@@ -107,16 +113,30 @@ haya pasado en el PR develop→master:
    `actions/deploy-pages` (oficial, gratis en repos públicos)
 
 Los artefactos generados (`reports/web/*.html`, `reports/data/`, CSVs) **no se commitean de vuelta** a
-`main` — quedan solo como artefacto de build de esa ejecución y se regeneran siempre desde código+datos
-fuente. El repo Git permanece limpio: solo versiona código, `data/raw/coffee_db.parquet`, notebooks, y
-`reports/executive_summary.md` (documento narrativo curado a mano).
+ninguna rama — quedan solo como artefacto de build de esa ejecución y se regeneran siempre desde
+código+datos fuente. El repo Git permanece limpio: solo versiona código, `data/raw/coffee_db.parquet`
+(vía LFS), notebooks, `docs/` y `reports/executive_summary.md` (documento narrativo curado a mano).
+
+**Buenas prácticas DevOps adicionales incluidas:**
+- **Caché de pip** en `actions/setup-python` (`cache: pip`) — acelera cada corrida de CI reutilizando
+  dependencias entre ejecuciones, sin infraestructura extra.
+- **Pre-commit hooks** (`.pre-commit-config.yaml`): `ruff check --fix` + `ruff format` en cada commit
+  local — detecta problemas de estilo antes de llegar a CI, mismo linter que ya usa `ci.yml` (una sola
+  herramienta, sin duplicar configuración).
+- **Dependabot** (`.github/dependabot.yml`): actualizaciones automáticas semanales de dependencias de
+  `pip` y de las Actions usadas en los workflows — gratis, nativo de GitHub, sin servidor propio.
+- **Escaneo de secretos en CI**: paso con `gitleaks` (Action open-source, gratis) en `ci.yml` para evitar
+  que credenciales (p.ej. una `ANTHROPIC_API_KEY` si se retoma la página GenAI) se cuelen en un commit.
 
 ## Empaquetado y migración
 
 - `pyproject.toml` (setuptools, src-layout) reemplaza `requirements.txt`: define el paquete
   `coffee-analytics`, dependencias ancladas, entrypoint de consola `coffee-analytics`, y configuración de
   `ruff` y `pytest` (marker `slow`).
-- `.gitignore` se amplía: excluye `reports/web/*.html`, `reports/data/`, `reports/*.csv`.
+- `.gitignore` se amplía: excluye `.claude/` (herramientas del agente/IDE, no forman parte del proyecto),
+  `data/processed/` (derivado, regenerable), `reports/web/*.html`, `reports/data/`, `reports/*.csv`.
+- `docs/` agrupa documentación no-código: el PDF del enunciado (`docs/Reto Tecnico ML.pdf`) y las specs
+  de diseño (`docs/superpowers/specs/`).
 - `scripts/run_pipeline.py` y `scripts/build_report.py` se retiran a favor de `coffee_analytics/cli.py`.
 - `reports/web/genai.html` (placeholder GenAI) queda sin cambios — fuera de alcance de este diseño.
 
