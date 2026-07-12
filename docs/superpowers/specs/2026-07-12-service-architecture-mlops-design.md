@@ -11,7 +11,7 @@ informe web interactivo (`reports/web/`), todo generado por `scripts/run_pipelin
 `scripts/build_report.py` sobre módulos en `src/`. El código funciona y los resultados ya están
 documentados en `reports/executive_summary.md`.
 
-El repositorio **no tiene git inicializado** todavía. El usuario pide evolucionar esto a un sistema
+El repositorio ya está inicializado localmente y el usuario pide evolucionar esto a un sistema
 automatizado, modular, con buenas prácticas de MLOps, tests unitarios/integración, y un repositorio
 GitHub con CI/CD que despliegue gratuitamente el sitio generado.
 
