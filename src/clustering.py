@@ -83,6 +83,24 @@ def label_consumption_clusters(prof: pd.DataFrame) -> dict:
     return labels
 
 
+def label_clusters_by_profile(prof: pd.DataFrame, level_col: str, growth_col: str,
+                              dominance_col: str = None) -> dict:
+    """Etiquetas de negocio por tamaño/crecimiento medio del cluster (split por mediana) — reutilizable
+    para cualquier vista de clustering, no solo consumo. Si se da `dominance_col` (fracción 0-1, ej.
+    arabica_dominant), antepone la preferencia de tipo dominante del cluster.
+    """
+    lvl_med, gr_med = prof[level_col].median(), prof[growth_col].median()
+    labels = {}
+    for idx, row in prof.iterrows():
+        size = "grande" if row[level_col] >= lvl_med else "pequeño"
+        growth = "en crecimiento" if row[growth_col] >= gr_med else "estable"
+        parts = [f"{size}, {growth}"]
+        if dominance_col:
+            parts.insert(0, "Arabica-dom." if row[dominance_col] >= 0.5 else "Robusta-dom.")
+        labels[idx] = " · ".join(parts).capitalize()
+    return labels
+
+
 if __name__ == "__main__":
     from data_prep import build_long_dataset
     from features import build_and_save

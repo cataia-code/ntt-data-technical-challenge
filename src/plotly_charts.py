@@ -1,27 +1,24 @@
 """Figuras Plotly con estética café para el informe web interactivo.
 
-Los colores categóricos de los 4 tipos de café fueron validados con el validador de la skill dataviz
-(CVD-safe en light y dark; solo un WARN de contraste que se cubre con leyendas + etiquetas directas).
 El informe se compromete a un único look cálido ("café"), coherente con las maquetas de referencia.
+Los 4 colores categóricos de tipo de café se eligen por separación perceptual real: Arabica y Robusta
+antes compartían la misma familia naranja/caramelo (#C77E12 vs #B5651D) y eran casi indistinguibles a
+tamaño de burbuja pequeño (reportado directamente sobre la matriz tamaño×crecimiento) — Robusta se
+movió a un espresso oscuro para separarse por luminosidad, no solo por matiz, lo que además ayuda
+bajo daltonismo rojo-verde.
 """
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- Paleta café validada (no elegida a ojo; ver validate_palette.js) --------------------------- #
+# --- Paleta café: 4 matices distintos + separación por luminosidad, no solo por matiz ------------ #
 COFFEE_TYPE_COLORS = {
-    "Arabica": "#C77E12",          # ámbar / tueste dorado
-    "Arabica/Robusta": "#2A9D8F",  # teal (ancla de separación CVD)
-    "Robusta": "#B5651D",          # caramelo
+    "Arabica": "#C77E12",          # ámbar / tueste dorado — el más brillante y saturado
+    "Arabica/Robusta": "#2A9D8F",  # teal — único hue frío, ancla de separación CVD
+    "Robusta": "#5C3A21",          # espresso oscuro — antes "caramelo" #B5651D, muy cerca de Arabica
     "Robusta/Arabica": "#B23A48",  # vino
 }
-# Ramp secuencial marrón-café (light->dark) para heatmap / choropleth.
-COFFEE_SEQUENTIAL = [
-    [0.0, "#F5E9DA"], [0.2, "#E4C9A3"], [0.4, "#D0A56E"],
-    [0.6, "#B5773C"], [0.8, "#8A5626"], [1.0, "#5E3A18"],
-]
-
 # Paleta categórica de continentes (validada aparte, distinta de la de tipos de café para no
 # confundir ambas dimensiones cuando aparecen en la misma página; subconjunto blue/aqua/green/violet
 # de la paleta de referencia de la skill dataviz, validado CVD-safe con validate_palette.js).
@@ -33,11 +30,11 @@ QUADRANT_COLORS = {
     "Priorizar": "#2F7D32", "Explorar": "#C77E12", "Defender": "#6B5647", "Baja prioridad": "#B23A48",
 }
 
-# --- Tokens de chrome (tema café claro) --------------------------------------------------------- #
-SURFACE = "#FBF6EF"      # crema (superficie de gráfico)
+# --- Tokens de chrome (tema café claro, lienzo técnico) ------------------------------------------ #
+SURFACE = "#FFFFFF"      # blanco puro (superficie de gráfico, se funde con la tarjeta .card)
 INK = "#2E1D12"          # espresso (texto primario)
 INK_SOFT = "#6B5647"     # marrón suave (texto secundario)
-GRID = "#E7DAC8"         # retícula hairline
+GRID = "rgba(46, 29, 18, 0.10)"  # retícula hairline: espresso a baja opacidad, no un tono plano
 ACCENT = "#E08A1E"       # naranja acento
 
 FORECAST_COLOR = "#E08A1E"
@@ -45,6 +42,8 @@ HISTORY_COLOR = "#4A2E1C"
 BAND_COLOR = "rgba(224,138,30,0.18)"
 
 FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+# Solo para ticks/valores numéricos (look técnico de hoja de datos); sin CDN externo, todo system font.
+MONO_FONT = '"Cascadia Mono", "Segoe UI Mono", ui-monospace, Consolas, "Liberation Mono", Menlo, monospace'
 
 
 def _base_layout(fig: go.Figure, title: str = "", height: int = 360) -> go.Figure:
@@ -55,10 +54,12 @@ def _base_layout(fig: go.Figure, title: str = "", height: int = 360) -> go.Figur
         margin=dict(l=60, r=24, t=48 if title else 20, b=48),
         height=height,
         legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=INK)),
-        hoverlabel=dict(font=dict(family=FONT)),
+        hoverlabel=dict(font=dict(family=MONO_FONT, size=12)),
     )
-    fig.update_xaxes(showgrid=False, linecolor=GRID, tickcolor=GRID, color=INK_SOFT, zeroline=False)
-    fig.update_yaxes(showgrid=True, gridcolor=GRID, linecolor=GRID, color=INK_SOFT, zeroline=False)
+    fig.update_xaxes(showgrid=False, linecolor=GRID, tickcolor=GRID, color=INK_SOFT, zeroline=False,
+                     tickfont=dict(family=MONO_FONT), automargin=True)
+    fig.update_yaxes(showgrid=True, gridcolor=GRID, linecolor=GRID, color=INK_SOFT, zeroline=False,
+                     tickfont=dict(family=MONO_FONT), automargin=True)
     return fig
 
 
@@ -138,60 +139,31 @@ def fig_evolution_dual_selector(long_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def fig_top_countries(long_df: pd.DataFrame, n: int = 15) -> go.Figure:
-    valid = long_df[long_df["is_valid_series"]]
-    totals = valid.groupby(["Country", "Coffee type"])["consumption"].sum().reset_index()
-    totals = totals.sort_values("consumption", ascending=False).head(n).iloc[::-1]
-    colors = [COFFEE_TYPE_COLORS.get(t, ACCENT) for t in totals["Coffee type"]]
-    fig = go.Figure(go.Bar(
-        x=totals["consumption"], y=totals["Country"], orientation="h", marker_color=colors,
-        customdata=totals["Coffee type"],
-        hovertemplate="%{y}<br>%{x:,.0f} tazas<br>Tipo: %{customdata}<extra></extra>",
-    ))
-    fig = _base_layout(fig, f"Top {n} países por consumo doméstico total (1990–2020)", height=440)
-    fig.update_xaxes(title="Consumo total (tazas)", showgrid=True, gridcolor=GRID)
-    fig.update_yaxes(showgrid=False)
-    return fig
+def fig_distribution_by_continent(long_df: pd.DataFrame, stats: dict) -> go.Figure:
+    """Distribución del consumo por país (último año), por continente, en escala log.
 
-
-def _human_short(v: float) -> str:
-    if v >= 1e9:
-        return f"{v/1e9:.0f}B"
-    if v >= 1e6:
-        return f"{v/1e6:.0f}M"
-    if v >= 1e3:
-        return f"{v/1e3:.0f}k"
-    return f"{v:.0f}"
-
-
-def fig_distribution_hist(long_df: pd.DataFrame, stats: dict) -> go.Figure:
-    """Distribución del consumo por país (último año) en escala log, con media y mediana marcadas.
-
-    La brecha entre media y mediana visualiza directamente la asimetría (unos pocos países muy
-    grandes empujan la media muy por encima de la mediana). Se usa log10 porque el consumo abarca
-    varios órdenes de magnitud — en escala lineal, Brasil comprime a todo el resto en una sola barra.
+    Un boxplot por continente (con cada país como punto individual) muestra la misma asimetría que
+    un histograma plano, pero además responde "¿quién compone cada nivel?": la mediana y el rango
+    de cada continente, y qué país concreto es cada outlier (ej. Brasil en América) al pasar el mouse.
     """
     valid = long_df[long_df["is_valid_series"]]
-    s = valid[valid["fiscal_year_start"] == stats["year"]]["consumption"]
-    s = s[s > 0]
-    log_s = np.log10(s)
+    d = valid[(valid["fiscal_year_start"] == stats["year"]) & (valid["consumption"] > 0)]
+    order = d.groupby("continent")["consumption"].median().sort_values(ascending=False).index
 
-    fig = go.Figure(go.Histogram(
-        x=log_s, nbinsx=14, marker_color=ACCENT, opacity=0.85,
-        hovertemplate="%{y} países<extra></extra>",
-    ))
-    fig.add_vline(x=np.log10(stats["mean"]), line=dict(color=HISTORY_COLOR, width=2, dash="dash"))
-    fig.add_vline(x=np.log10(stats["median"]), line=dict(color="#2A9D8F", width=2, dash="dot"))
-    fig.add_annotation(x=np.log10(stats["mean"]), y=1.0, yref="y domain", yanchor="bottom", showarrow=False,
-                       text=f"Media: {_human_short(stats['mean'])}", font=dict(size=11, color=HISTORY_COLOR))
-    fig.add_annotation(x=np.log10(stats["median"]), y=0.88, yref="y domain", yanchor="bottom", showarrow=False,
-                       text=f"Mediana: {_human_short(stats['median'])}", font=dict(size=11, color="#2A9D8F"))
-
-    tick_log = np.arange(np.floor(log_s.min()), np.ceil(log_s.max()) + 1)
-    fig = _base_layout(fig, f"Distribución del consumo por país ({stats['year']}/{str(stats['year']+1)[-2:]}) "
-                            "— escala logarítmica", height=320)
-    fig.update_xaxes(title="Consumo (tazas)", tickvals=tick_log, ticktext=[_human_short(10**v) for v in tick_log])
-    fig.update_yaxes(title="# de países")
+    fig = go.Figure()
+    for cont in order:
+        sub = d[d["continent"] == cont]
+        fig.add_trace(go.Box(
+            y=sub["consumption"], x=[cont] * len(sub), name=cont, text=sub["Country"],
+            marker=dict(color=CONTINENT_COLORS.get(cont, ACCENT), size=6),
+            line=dict(color=CONTINENT_COLORS.get(cont, ACCENT)),
+            boxpoints="all", pointpos=0, jitter=0.5, showlegend=False,
+            hovertemplate="<b>%{text}</b><br>%{y:,.0f} tazas<extra>" + cont + "</extra>",
+        ))
+    fig = _base_layout(fig, f"Distribución del consumo por continente ({stats['year']}/"
+                            f"{str(stats['year']+1)[-2:]}) — escala logarítmica", height=380)
+    fig.update_yaxes(title="Consumo (tazas)", type="log")
+    fig.update_xaxes(title="")
     return fig
 
 
@@ -215,36 +187,8 @@ def fig_pareto(pareto_df: pd.DataFrame, top_n: int = 20) -> go.Figure:
     fig.add_hline(y=80, line=dict(color=INK_SOFT, width=1, dash="dot"),
                   annotation_text="80%", annotation_position="right", annotation_font=dict(color=INK_SOFT, size=11))
     fig = _base_layout(fig, f"Concentración del consumo — Pareto (top {top_n} países)", height=380)
-    fig.update_yaxes(title="% del consumo mundial (individual y acumulado)", range=[0, 105])
+    fig.update_yaxes(title="% del consumo", range=[0, 105])
     fig.update_xaxes(tickangle=-40)
-    return fig
-
-
-def fig_waterfall(wf: dict) -> go.Figure:
-    """Puente del cambio de consumo global entre las dos últimas campañas: total inicial, la
-    contribución de cada país (top movers + resto agregado), y el total final."""
-    y0_label = f"{wf['y0']}/{str(wf['y0'] + 1)[-2:]}"
-    y1_label = f"{wf['y1']}/{str(wf['y1'] + 1)[-2:]}"
-    labels = [f"Total {y0_label}"] + [c for c, _ in wf["items"]] + [f"Total {y1_label}"]
-    values = [wf["total_y0"]] + [v for _, v in wf["items"]] + [wf["total_y1"]]
-    measures = ["absolute"] + ["relative"] * len(wf["items"]) + ["total"]
-    fig = go.Figure(go.Waterfall(
-        x=labels, y=values, measure=measures,
-        increasing=dict(marker_color="#2F7D32"), decreasing=dict(marker_color="#B23A48"),
-        totals=dict(marker_color=INK_SOFT),
-        connector=dict(line=dict(color=GRID, width=1)),
-        hovertemplate="%{x}<br>%{y:,.0f} tazas<extra></extra>",
-    ))
-    fig = _base_layout(fig, f"Qué explica el cambio {y0_label} → {y1_label}", height=380)
-    # El eje se acota (no parte de 0) para que el detalle del puente sea legible: el cambio total es
-    # ~0.5% de la base, invisible en una escala completa. Se declara explícitamente para no engañar.
-    lo = min(wf["total_y0"], wf["total_y1"]) - abs(wf["total_delta"]) * 2.2
-    hi = max(wf["total_y0"], wf["total_y1"]) + abs(wf["total_delta"]) * 2.2
-    # Nota: el eje se acota (no parte de 0) para que el puente sea legible — el cambio total es
-    # ~0.5% de la base y sería invisible en escala completa. Se declara en el texto de la página
-    # (no dentro de la figura, para evitar colisión de coordenadas con el título en distintos anchos).
-    fig.update_yaxes(title="Consumo (tazas)", range=[lo, hi])
-    fig.update_xaxes(tickangle=-30)
     return fig
 
 
@@ -288,7 +232,7 @@ def fig_quadrant_matrix(quad_df: pd.DataFrame) -> go.Figure:
             x=sub["cagr_recent"] * 100, y=sub["level_last5_mean"], mode="markers", name=t, text=sub["Country"],
             customdata=sub["quadrant"],
             marker=dict(size=sub["total"], sizemode="area", sizeref=sizeref, sizemin=4,
-                        color=COFFEE_TYPE_COLORS.get(t, ACCENT), line=dict(width=0.5, color="#FBF6EF")),
+                        color=COFFEE_TYPE_COLORS.get(t, ACCENT), line=dict(width=0.5, color=SURFACE)),
             hovertemplate="<b>%{text}</b><br>CAGR reciente: %{x:.1f}%<br>Consumo reciente: %{y:,.0f} tazas"
                           "<br>Cuadrante: %{customdata}<extra>" + t + "</extra>",
         ))
@@ -314,132 +258,6 @@ def fig_quadrant_matrix(quad_df: pd.DataFrame) -> go.Figure:
     fig.update_xaxes(title="CAGR reciente (10 años, %)", showgrid=True, gridcolor=GRID, range=[x_lo, x_hi])
     fig.update_yaxes(title="Consumo reciente (promedio últimos 5 años, tazas)", type="log",
                      range=[y_lo_log, y_hi_log])
-    return fig
-
-
-def fig_type_distribution(long_df: pd.DataFrame) -> go.Figure:
-    valid = long_df[long_df["is_valid_series"]]
-    by_type = valid.groupby("Coffee type")["consumption"].sum().sort_values(ascending=False)
-    colors = [COFFEE_TYPE_COLORS.get(t, ACCENT) for t in by_type.index]
-    fig = go.Figure(go.Pie(
-        labels=by_type.index, values=by_type.values, hole=0.55,
-        marker=dict(colors=colors), sort=False,
-        hovertemplate="%{label}<br>%{value:,.0f} (%{percent})<extra></extra>",
-    ))
-    fig.update_layout(
-        title=dict(text="Consumo acumulado por tipo de café", font=dict(size=17, color=INK, family=FONT), x=0.01),
-        paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font=dict(family=FONT, color=INK, size=13),
-        margin=dict(l=20, r=20, t=44, b=20), height=340, legend=dict(font=dict(color=INK)),
-    )
-    return fig
-
-
-def fig_type_trend_by_scope(long_df: pd.DataFrame) -> go.Figure:
-    """Tendencia por tipo de café (4 líneas) con selector de alcance: Global o por continente."""
-    valid = long_df[long_df["is_valid_series"]]
-    scopes = ["Global"] + sorted(valid["continent"].dropna().unique().tolist())
-    types = sorted(valid["Coffee type"].unique())
-
-    fig = go.Figure()
-    trace_idx = {}
-    idx = 0
-    for scope in scopes:
-        trace_idx[scope] = []
-        scoped = valid if scope == "Global" else valid[valid["continent"] == scope]
-        for t in types:
-            s = scoped[scoped["Coffee type"] == t].groupby("fiscal_year_start")["consumption"].sum()
-            fig.add_trace(go.Scatter(
-                x=s.index, y=s.values, mode="lines", name=t, legendgroup=t,
-                visible=(scope == "Global"), showlegend=(scope == "Global"),
-                line=dict(color=COFFEE_TYPE_COLORS.get(t, ACCENT), width=2.5),
-                hovertemplate=f"{t} — {scope}<br>" + "%{x}: %{y:,.0f} tazas<extra></extra>",
-            ))
-            trace_idx[scope].append(idx)
-            idx += 1
-
-    n = idx
-    buttons = []
-    for scope in scopes:
-        vis = [False] * n
-        leg = [False] * n
-        for i in trace_idx[scope]:
-            vis[i] = True
-            leg[i] = True
-        buttons.append(dict(label=scope, method="update",
-                            args=[{"visible": vis, "showlegend": leg},
-                                  {"title.text": f"Tendencia por tipo de café — {scope}"}]))
-
-    fig.update_layout(updatemenus=[dict(
-        buttons=buttons, direction="down", x=1.0, xanchor="right", y=1.24, yanchor="top",
-        bgcolor=SURFACE, bordercolor=GRID, font=dict(color=INK, size=12),
-    )])
-    fig = _base_layout(fig, "Tendencia por tipo de café — Global", height=360)
-    fig.update_layout(margin=dict(t=80))
-    fig.update_yaxes(title="Consumo (tazas)")
-    return fig
-
-
-def fig_continent_distribution(long_df: pd.DataFrame) -> go.Figure:
-    valid = long_df[long_df["is_valid_series"]]
-    by_cont = valid.groupby("continent")["consumption"].sum().sort_values(ascending=False)
-    colors = [CONTINENT_COLORS.get(c, ACCENT) for c in by_cont.index]
-    fig = go.Figure(go.Pie(
-        labels=by_cont.index, values=by_cont.values, hole=0.55,
-        marker=dict(colors=colors), sort=False,
-        hovertemplate="%{label}<br>%{value:,.0f} tazas (%{percent})<extra></extra>",
-    ))
-    fig.update_layout(
-        title=dict(text="Consumo acumulado por continente", font=dict(size=17, color=INK, family=FONT), x=0.01),
-        paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font=dict(family=FONT, color=INK, size=13),
-        margin=dict(l=20, r=20, t=44, b=20), height=340, legend=dict(font=dict(color=INK)),
-    )
-    return fig
-
-
-def fig_geo_bubble(bubble_df: pd.DataFrame, size_col: str = "total", title: str = "") -> go.Figure:
-    """Mapa geográfico de burbujas: tamaño=consumo HISTÓRICO total, color=tipo de café.
-
-    Muestra únicamente datos observados (1990–2020) — el forecast se presenta en la página
-    Forecasting & ML, no aquí, para no mezclar hecho con proyección en el EDA.
-    """
-    df = bubble_df.copy()
-    sizeref = 2.0 * df[size_col].max() / (55.0 ** 2)
-    fig = go.Figure()
-    for t in sorted(df["Coffee type"].unique()):
-        sub = df[df["Coffee type"] == t]
-        fig.add_trace(go.Scattergeo(
-            locations=sub["iso3"], locationmode="ISO-3", text=sub["Country"], name=t,
-            marker=dict(size=sub[size_col], sizemode="area", sizeref=sizeref, sizemin=3,
-                        color=COFFEE_TYPE_COLORS.get(t, ACCENT), line=dict(width=0.5, color="#FBF6EF")),
-            customdata=sub[["total"]].to_numpy(),
-            hovertemplate="<b>%{text}</b><br>Consumo histórico total: %{customdata[0]:,.0f} tazas"
-                          "<extra>" + t + "</extra>",
-        ))
-    fig.update_geos(
-        showcountries=True, countrycolor="#E7DAC8", showland=True, landcolor="#F0E6D6",
-        showocean=True, oceancolor="#FBF6EF", showframe=False, coastlinecolor="#E7DAC8",
-        projection_type="natural earth", bgcolor=SURFACE,
-    )
-    fig.update_layout(
-        title=dict(text=title or "Consumo doméstico histórico por país y tipo de café", font=dict(size=17, color=INK, family=FONT), x=0.01),
-        paper_bgcolor=SURFACE, font=dict(family=FONT, color=INK, size=13),
-        margin=dict(l=10, r=10, t=44, b=10), height=440, legend=dict(font=dict(color=INK)),
-    )
-    return fig
-
-
-def fig_heatmap(long_df: pd.DataFrame, top_n: int = 20) -> go.Figure:
-    valid = long_df[long_df["is_valid_series"]]
-    top = valid.groupby("Country")["consumption"].sum().sort_values(ascending=False).head(top_n).index
-    pivot = valid[valid["Country"].isin(top)].pivot(index="Country", columns="fiscal_year_start", values="consumption")
-    pivot = pivot.div(pivot.max(axis=1), axis=0).loc[top[::-1]]
-    fig = go.Figure(go.Heatmap(
-        z=pivot.values, x=pivot.columns, y=pivot.index, colorscale=COFFEE_SEQUENTIAL,
-        colorbar=dict(title="% de su máx."),
-        hovertemplate="%{y}<br>%{x}: %{z:.0%} del máximo histórico<extra></extra>",
-    ))
-    fig = _base_layout(fig, f"Trayectoria de consumo normalizada — Top {top_n} países", height=420)
-    fig.update_yaxes(showgrid=False)
     return fig
 
 
@@ -475,34 +293,44 @@ def fig_forecast(res: dict, title: str) -> go.Figure:
     return fig
 
 
+def fig_backtest_error_distribution(forecast_summary: pd.DataFrame) -> go.Figure:
+    """Dispersión del MAPE de backtest entre las series por país — un promedio esconde la cola de
+    series difíciles de proyectar; esta vista la hace visible (cada punto es un país, hover = país +
+    modelo ganador).
+    """
+    df = forecast_summary
+    fig = go.Figure()
+    fig.add_trace(go.Box(
+        y=df["backtest_mape"], x=["Backtest por país"] * len(df), text=df["series"],
+        customdata=df["best_model"],
+        marker=dict(color=ACCENT, size=6), line=dict(color=HISTORY_COLOR),
+        boxpoints="all", pointpos=0, jitter=0.6, showlegend=False,
+        hovertemplate="<b>%{text}</b> (%{customdata})<br>MAPE: %{y:.2f}%<extra></extra>",
+    ))
+    fig = _base_layout(fig, "Dispersión del error de backtest por país (rolling-origin, 1 paso)", height=360)
+    fig.update_yaxes(title="MAPE backtest (%)")
+    fig.update_xaxes(title="")
+    return fig
+
+
 def fig_cluster_scatter(pca_df: pd.DataFrame, labels: np.ndarray, cluster_names: dict = None,
                         explained_variance=None) -> go.Figure:
     df = pca_df.copy()
     df["cluster"] = labels
     ev = explained_variance or pca_df.attrs.get("explained_variance", [0, 0])
     fig = go.Figure()
-    palette = ["#C77E12", "#2A9D8F", "#B5651D", "#B23A48", "#6B5647", "#4A2E1C"]
+    # Reutiliza la paleta de tipo de café (ya separada por matiz+luminosidad) en vez de duplicar los
+    # mismos 4 hex sueltos; 2 neutros extra por si algún día hay más de 4 clusters.
+    palette = list(COFFEE_TYPE_COLORS.values()) + ["#6B5647", "#4A2E1C"]
     for i, c in enumerate(sorted(df["cluster"].unique())):
         sub = df[df["cluster"] == c]
         name = cluster_names.get(c, f"Cluster {c}") if cluster_names else f"Cluster {c}"
         fig.add_trace(go.Scatter(
             x=sub["pc1"], y=sub["pc2"], mode="markers", name=name, text=sub["Country"],
-            marker=dict(size=11, color=palette[i % len(palette)], line=dict(width=0.5, color="#FBF6EF")),
+            marker=dict(size=11, color=palette[i % len(palette)], line=dict(width=0.5, color=SURFACE)),
             hovertemplate="<b>%{text}</b><extra>" + name + "</extra>",
         ))
     fig = _base_layout(fig, "Segmentación de países (proyección PCA)", height=400)
     fig.update_xaxes(title=f"PC1 ({ev[0]:.0%} var.)", showgrid=True, gridcolor=GRID)
     fig.update_yaxes(title=f"PC2 ({ev[1]:.0%} var.)")
-    return fig
-
-
-def fig_model_comparison(bt_df: pd.DataFrame, title: str = "Comparación de modelos (MAPE rolling)") -> go.Figure:
-    df = bt_df.sort_values("mape")
-    fig = go.Figure(go.Bar(
-        x=df["mape"], y=df["model"], orientation="h", marker_color=ACCENT,
-        hovertemplate="%{y}: %{x:.2f}% MAPE<extra></extra>",
-    ))
-    fig = _base_layout(fig, title, height=300)
-    fig.update_xaxes(title="MAPE (%)", showgrid=True, gridcolor=GRID)
-    fig.update_yaxes(showgrid=False)
     return fig

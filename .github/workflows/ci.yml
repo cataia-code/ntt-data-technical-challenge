@@ -43,4 +43,4 @@ jobs:
 
       - name: Test
         run: |
-          pytest tests/test_pipeline.py
+          pytest tests/

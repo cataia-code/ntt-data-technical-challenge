@@ -4,8 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-RAW_PATH = Path(__file__).resolve().parents[1] / "data" / "raw" / "coffee_db.parquet"
-LONG_PATH = Path(__file__).resolve().parents[1] / "data" / "processed" / "coffee_long.parquet"
+from config import RAW_PATH, LONG_PATH
 
 # El nombre viene con mojibake en el parquet ("C�te d'Ivoire"); se corrige al cargar.
 MOJIBAKE_FIX = {"C�te d'Ivoire": "Côte d'Ivoire"}
@@ -102,14 +101,18 @@ def load_raw(path: Path = RAW_PATH) -> pd.DataFrame:
 def validate_coherence(df: pd.DataFrame) -> dict:
     """Verifica que Total_domestic_consumption == suma de las columnas anuales (sin negativos).
 
-    Devuelve un dict con el resultado; lanza AssertionError si la coherencia no se cumple.
+    Devuelve un dict con el resultado; lanza ValueError si la coherencia no se cumple. Se usa
+    `raise` explícito (no `assert`) porque esta es una validación de un límite del sistema (datos de
+    entrada), no un invariante interno — los asserts se descartan al ejecutar Python con `-O`.
     """
     year_cols = [c for c in df.columns if "/" in c]
     row_sum = df[year_cols].sum(axis=1)
     max_diff = int((df["Total_domestic_consumption"] - row_sum).abs().max())
     has_negatives = bool((df[year_cols] < 0).any().any())
-    assert max_diff == 0, f"Incoherencia Total vs suma anual: max |diff| = {max_diff}"
-    assert not has_negatives, "Existen valores de consumo negativos"
+    if max_diff != 0:
+        raise ValueError(f"Incoherencia Total vs suma anual: max |diff| = {max_diff}")
+    if has_negatives:
+        raise ValueError("Existen valores de consumo negativos")
     return {"rows": len(df), "max_abs_diff": max_diff, "has_negatives": has_negatives}
 
 
@@ -142,8 +145,17 @@ def flag_zero_series(long_df: pd.DataFrame) -> pd.DataFrame:
     return long_df
 
 
-def build_long_dataset(raw_path: Path = RAW_PATH, save_to: Path = LONG_PATH) -> pd.DataFrame:
-    df = load_raw(raw_path)
+def build_long_dataset(
+    raw_path: Path = RAW_PATH,
+    save_to: Path = LONG_PATH,
+    raw_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Construye el dataset long a partir del wide crudo.
+
+    `raw_df` permite reutilizar un DataFrame ya cargado por la capa orquestadora y evitar un segundo
+    read_parquet cuando el caller ya tiene los datos en memoria.
+    """
+    df = raw_df if raw_df is not None else load_raw(raw_path)
     validate_coherence(df)
     long_df = wide_to_long(df)
     long_df = flag_zero_series(long_df)

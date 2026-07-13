@@ -5,10 +5,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from config import FEATURES_PATH
+
 RECENT_YEARS = 10
 LAST_N_YEARS = 5
-
-FEATURES_PATH = Path(__file__).resolve().parents[1] / "data" / "processed" / "country_features.parquet"
 
 
 def _cagr_robust(series: pd.Series) -> float:

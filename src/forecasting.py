@@ -133,24 +133,43 @@ def forecast_series(values, horizon=DEFAULT_HORIZON):
     """Selecciona modelo por rolling backtest, reentrena con todo y devuelve punto + banda empírica.
 
     Los intervalos usan los cuantiles de los residuos relativos del backtest del modelo ganador
-    (conformal-lite), por lo que aplican también a naive/linear.
+    (conformal-lite, validado a 1 paso con orígenes móviles), por lo que aplican también a
+    naive/linear. La banda se ensancha con `sqrt(paso)` a medida que el horizonte avanza — supuesto
+    de paseo aleatorio (la varianza del error crece linealmente con el tiempo, el desvío con su raíz):
+    sin esto, un forecast a 11 años mostraría la misma incertidumbre en el año 1 y en el año 11, que
+    subestima el riesgo real de proyectar lejos del último dato observado.
     """
     values = np.asarray(values, dtype=float)
     model_name, bt = select_model(values, horizon=1)
     point = predict(model_name, values, horizon)
+    naive_mape = float(bt.loc[bt["model"] == "naive", "mape"].iloc[0])
 
     rel = bt.attrs["rel_residuals"].get(model_name, np.array([]))
     rel = rel[np.isfinite(rel)]
+    covered, coverage_total = 0, 0
     if rel.size >= 3:
         lo_q, hi_q = np.quantile(rel, [0.1, 0.9])
+        step_scale = np.sqrt(np.arange(1, horizon + 1))
         # residual = (pred - actual)/actual  ->  actual = pred / (1 + residual)
-        lower = point / (1 + hi_q)
-        upper = point / (1 + lo_q)
+        lower = point / (1 + hi_q * step_scale)
+        upper = point / (1 + lo_q * step_scale)
+        # Cobertura empírica leave-one-out del intervalo 80% nominal: por cada residuo, se reconstruye
+        # el intervalo con los DEMÁS y se comprueba si el excluido cae dentro. Evita el sesgo optimista
+        # de validar el intervalo con los mismos residuos que lo definieron.
+        for i in range(rel.size):
+            other = np.delete(rel, i)
+            if other.size < 2:
+                continue
+            lo_i, hi_i = np.quantile(other, [0.1, 0.9])
+            coverage_total += 1
+            if lo_i <= rel[i] <= hi_i:
+                covered += 1
     else:
         lower = upper = None
 
     return {"model": model_name, "point": point, "lower": lower, "upper": upper,
-            "backtest": bt, "mape": float(bt.iloc[0]["mape"]), "mae": float(bt.iloc[0]["mae"])}
+            "backtest": bt, "mape": float(bt.iloc[0]["mape"]), "mae": float(bt.iloc[0]["mae"]),
+            "naive_mape": naive_mape, "coverage_covered": covered, "coverage_total": coverage_total}
 
 
 # --------------------------------------------------------------------------- #
@@ -194,6 +213,7 @@ def forecast_all_countries(long_df, horizon=DEFAULT_HORIZON):
         results[country] = res
         rows.append({"series": country, "best_model": res["model"],
                      "backtest_mape": round(res["mape"], 2), "backtest_mae": round(res["mae"], 2),
+                     "naive_mape": round(res["naive_mape"], 2),
                      "last_observed": hist[-1], "forecast_final": float(res["point"][-1])})
     summary = pd.DataFrame(rows).sort_values("last_observed", ascending=False).reset_index(drop=True)
     summary.attrs["horizon"] = horizon
