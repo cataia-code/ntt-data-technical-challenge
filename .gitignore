@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Proyecto: coffee-analytics ---------------------------------------- #
+
+# Herramientas del agente/IDE, no forman parte del proyecto
+.claude/
+
+# Datos derivados/regenerables: se reconstruyen desde data/raw + código.
+# data/raw/ SÍ se versiona (vía Git LFS, ver .gitattributes) porque es el
+# único insumo inmutable del reto y no tiene fuente externa de la que
+# descargarse.
+data/processed/
+
+# Salidas generadas por el pipeline: se regeneran en CI/local, no se commitean.
+reports/web/*.html
+reports/data/
+reports/*.csv
