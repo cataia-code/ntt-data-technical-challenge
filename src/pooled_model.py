@@ -21,7 +21,7 @@ GLAGS = [1, 2, 3]
 ROLL_WINDOWS = [3, 5]
 
 FEATURE_COLS = (
-    [f"glag{l}" for l in GLAGS]
+    [f"glag{lag}" for lag in GLAGS]
     + [f"groll_mean{w}" for w in ROLL_WINDOWS]
     + [f"groll_std{w}" for w in ROLL_WINDOWS]
     + ["level1", "year_idx", "Country", "Coffee type"]
@@ -33,8 +33,8 @@ def _series_features(ylog: list, year_idx: int, country: str, ctype: str) -> dic
     """Features para predecir la tasa de crecimiento log del siguiente año, dada la historia log."""
     glog = list(np.diff(ylog))
     feat = {"level1": ylog[-1], "year_idx": year_idx, "Country": country, "Coffee type": ctype}
-    for l in GLAGS:
-        feat[f"glag{l}"] = glog[-l] if len(glog) >= l else 0.0
+    for lag in GLAGS:
+        feat[f"glag{lag}"] = glog[-lag] if len(glog) >= lag else 0.0
     for w in ROLL_WINDOWS:
         window = glog[-w:] if len(glog) >= 1 else [0.0]
         feat[f"groll_mean{w}"] = float(np.mean(window)) if window else 0.0

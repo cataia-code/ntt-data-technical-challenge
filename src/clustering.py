@@ -1,8 +1,7 @@
 """Segmentación de países en 3 vistas complementarias (consumo, preferencia de tipo, forecast)."""
 
-import numpy as np
 import pandas as pd
-from scipy.cluster.hierarchy import linkage, fcluster
+from scipy.cluster.hierarchy import linkage
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler

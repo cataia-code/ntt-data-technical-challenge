@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 """Genera el informe web interactivo (reports/web/) a partir del bundle de reports/data/.
 
 Ejecutar DESPUÉS de scripts/run_pipeline.py. Exporta cada figura Plotly como div embebible y las
@@ -124,8 +126,6 @@ def build():
     last_year_val = global_hist.iloc[-1]
     prev_year_val = global_hist.iloc[-2]
     cagr_global = (global_hist.iloc[-1] / global_hist.iloc[0]) ** (1 / (global_hist.index[-1] - global_hist.index[0])) - 1
-    top_market = valid.groupby("Country")["consumption"].sum().idxmax()
-
     # --- Vistas de negocio (EDA narrativo) --- #
     stats = bv.descriptive_stats(long_df)
     pareto = bv.pareto_table(long_df)

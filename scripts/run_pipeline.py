@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 """Pipeline end-to-end: computa forecasting (3 granularidades), ML y clustering, y persiste un
 bundle de resultados en reports/data/ que consume el informe web (scripts/build_report.py).
 

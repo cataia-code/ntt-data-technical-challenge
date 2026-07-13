@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 """Tests de calidad: coherencia de datos y smoke tests de modelos y clustering."""
 
 import sys

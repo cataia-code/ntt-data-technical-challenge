@@ -4,7 +4,6 @@ Complementan el forecasting para demostrar un uso más amplio de Machine Learnin
 siempre con métodos apropiados al tamaño (n=53 países) y reportando incertidumbre de forma honesta.
 """
 
-import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
